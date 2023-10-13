@@ -1,0 +1,68 @@
+services:
+
+  backend:
+    build: 
+      context: backend-Spring
+    restart: always
+    secrets:
+      - db-password
+    environment:
+      MYSQL_HOST: db
+    networks:
+      - react-spring
+      - spring-mysql
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    # We use a mariadb image which supports both amd64 & arm64 architecture
+    image: mysql:8.0.19
+    environment:
+      - MYSQL_DATABASE=example
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db-password
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      retries: 5
+      start_period: 30s
+    secrets:
+      - db-password
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - spring-mysql
+
+  frontend:
+    build:
+      context: frontend-React
+    ports:
+      - 5173:5173
+    volumes:
+      - ./frontend-React/src:/code/src
+      - /project/node_modules
+    networks:
+      - react-spring
+    depends_on:
+      - backend
+
+  proxy:
+    build:
+      context: proxy-Nginx
+    restart: always
+    ports:
+      - 80:80
+    depends_on: 
+      - backend
+    networks:
+      - react-spring
+
+volumes:
+  db-data: {}
+secrets:
+  db-password:
+    file: db-MySql/password.txt
+networks:
+  react-spring: {}
+  spring-mysql: {}
